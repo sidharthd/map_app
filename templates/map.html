@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.3/leaflet.css" />
+  <link rel="stylesheet" href="http://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css">
+  <script src="//cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.3/leaflet.js"></script>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js" charset="utf-8"></script>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/queue-async/1.0.7/queue.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+
+  <style>
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    .legend {
+      padding: 0px 0px;
+      font: 10px sans-serif;
+      background: white;
+      background: rgba(255,255,255,0.8);
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      border-radius: 5px;
+    }
+
+    .key path {
+      display: none;
+    }
+
+    .info {
+      width: 205px;
+      height: 170px;
+      padding: 6px 8px;
+      font: 14px sans-serif;
+      background: rgba(255,255,255,0.8);
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      border-radius: 5px;
+    }
+    .info h4 {
+      margin: 0 0 5px;
+      color: #777;
+    }
+
+    @-moz-document url-prefix() {
+      .info {
+          width: 215px;
+          height: 180px;
+          font: 13px sans-serif;;
+      }
+    }
+
+  </style>
+</head>
+
+<body>
+
+   <div class="container">
+    <div class="row">
+      <div class="col-md-3"></div>
+      <div class="col-md-6">
+        <nav class="navbar navbar-default">
+
+          <div class="navbar-brand">Air quality statistics for Indian states - 2011</div>
+
+        </nav>
+        <div id="map" class="well" style="width: 553px; height: 590px"></div>
+      </div>
+      <div class="col-md-3"></div>
+    </div>
+  </div>
+
+  <script>
+
+    queue()
+    .defer(d3.json, '/static/air_data.json')
+    .defer(d3.json, '/static/india_states.geojson')
+    .await(makeMap)
+
+    function makeMap(error, data_1,gjson_1) {
+
+
+      function matchKey(datapoint, key_variable){
+        if (typeof key_variable[0][datapoint] === 'undefined') {
+          return null;
+        }
+        else {
+          return parseFloat(key_variable[0][datapoint]);
+        };
+      };
+
+
+      var color = d3.scale.threshold()
+      .domain([10, 20])
+      .range(['#FFFFFF', '#00FF00', '#FF0000']);
+
+
+      var map = L.map('map').setView([25, 83], 4);
+
+      L.tileLayer('http://{s}.tile.stamen.com/terrain/{z}/{x}/{y}.jpg', {
+        maxZoom: 18,
+        minZoom: 1,
+        attribution: 'Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://creativecommons.org/licenses/by-sa/3.0">CC BY SA</a>.'
+      }).addTo(map);
+
+     function style_1(feature) {
+        return {
+          fillColor: color(matchKey(feature.properties.NAME_1, data_1)),
+          weight: 1,
+          opacity: 0.2,
+          color: 'black',
+          fillOpacity: 0.7
+        };
+      }
+
+      function highlightFeature(e) {
+        var layer = e.target;
+
+        layer.setStyle({
+          weight: 2,
+          opacity: 1,
+          color: '#666',
+          fillOpacity: 1
+        });
+
+        if (!L.Browser.ie && !L.Browser.opera) {
+          layer.bringToFront();
+        }
+
+        info.update(layer.feature.properties.NAME_1, layer.feature.properties.air);
+      }
+
+      function resetHighlight(e) {
+        gJson_layer_1.resetStyle(e.target);
+        info.update();
+      }
+
+      function onEachFeature(feature, layer) {
+        layer.on({
+          mouseover: highlightFeature,
+          mouseout: resetHighlight,
+        });
+      }
+
+      gJson_layer_1 = L.geoJson(gjson_1, {style: style_1, onEachFeature: onEachFeature}).addTo(map)
+
+      var legend = L.control({position: 'topright'});
+
+      legend.onAdd = function (map) {var div = L.DomUtil.create('div', 'legend'); return div};
+
+      legend.addTo(map);
+
+      var info = L.control({position: 'bottomright'});
+
+      info.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info');
+            this.update();
+            return this._div;
+          };
+
+        info.update = function (state, air) {
+          this._div.innerHTML = '<h4>Details of Air Quality</h4>' +  (air ?
+            '<br/><b>' + state + '</b>' +
+            '<br/>SO<sub>2</sub> annual average: <b>' + air[0] + '</b>' + 
+            '<br/>SO<sub>2</sub> standard deviation: <b>' + air[1] + '</b>' +
+            '<br/>NO<sub>2</sub> annual avergae: <b>' + air[2] + '</b>' +
+            '<br/>NO<sub>2</sub> standard deviation: <b>' + air[3] + '</b>' +
+            '<br/>PM10 annual average: <b>' + air[4] + '</b>' +
+            '<br/>PM10 standard deviation: <b>' + air[5] + '</b>'
+            : '<i>Hover over a state</i>');
+        };
+
+        info.addTo(map);
+
+        var x = d3.scale.linear()
+        .domain([0, 22])
+        .range([0, 400]);
+
+        var xAxis = d3.svg.axis()
+        .scale(x)
+        .orient("top")
+        .tickSize(1)
+        .tickValues([10, 20]);
+
+        var svg = d3.select(".legend.leaflet-control").append("svg")
+        .attr("id", 'legend')
+        .attr("width", 450)
+        .attr("height", 40);
+
+        var g = svg.append("g")
+        .attr("class", "key")
+        .attr("transform", "translate(25,16)");
+
+        g.selectAll("rect")
+        .data(color.range().map(function(d, i) {
+          return {
+            x0: i ? x(color.domain()[i - 1]) : x.range()[0],
+            x1: i < color.domain().length ? x(color.domain()[i]) : x.range()[1],
+            z: d
+          };
+        }))
+        .enter().append("rect")
+        .attr("height", 10)
+        .attr("x", function(d) { return d.x0; })
+        .attr("width", function(d) { return d.x1 - d.x0; })
+        .style("fill", function(d) { return d.z; });
+
+        g.call(xAxis).append("text")
+        .attr("class", "caption")
+        .attr("y", 21)
+        .text('SO2 Annual average');
+
+
+      };
+
+    </script>
+</body>
+</html>
